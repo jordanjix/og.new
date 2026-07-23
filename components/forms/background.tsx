@@ -17,12 +17,14 @@ import {
   ValueNoneIcon,
 } from "@radix-ui/react-icons"
 
+import { toHex6 } from "@/lib/colors"
 import { patterns } from "@/lib/patterns"
 import {
   GradientDirection,
   GridOverlayParams,
   toBackgroundShorthand,
 } from "@/lib/templates/elements/background"
+import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,6 +45,7 @@ import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { ResponsivePopover } from "../responsive-popover"
+import { ColorInput } from "./color-input"
 
 const solidColors = [
   // red/pink
@@ -251,8 +254,57 @@ const gridOverlayDefault: Omit<GridOverlayParams, "pattern"> = {
   blurRadius: 20,
 }
 
+// strips an optional trailing stop position, e.g. "#434343 0%" -> "#434343"
+function stripStopPosition(stop: string) {
+  return stop.replace(/\s+\d+(\.\d+)?%$/, "")
+}
+
 export function BackgroundForm() {
   const template = useTemplateStore((state) => state)
+
+  const background = template.background
+
+  const isCustomSolid =
+    background.type === "color" &&
+    !solidColors.some(
+      (c) => c.toLowerCase() === background.color.toLowerCase()
+    )
+
+  const isCustomGradient =
+    background.type === "linear-gradient" &&
+    !linearGradients.some(
+      (g) =>
+        JSON.stringify(g.colorStops) === JSON.stringify(background.colorStops)
+    )
+
+  const gradientDirection =
+    background.type === "linear-gradient"
+      ? background.direction
+      : DEFAULT_LINEAR_GRADIENT_DIRECTION
+
+  const gradientStart =
+    background.type === "linear-gradient"
+      ? (toHex6(stripStopPosition(background.colorStops[0])) ?? "#000000")
+      : "#000000"
+
+  const gradientEnd =
+    background.type === "linear-gradient"
+      ? (toHex6(
+          stripStopPosition(
+            background.colorStops[background.colorStops.length - 1]
+          )
+        ) ?? "#FFFFFF")
+      : "#FFFFFF"
+
+  const setCustomGradient = (colorStops: [string, string]) => {
+    template.setBackground({
+      type: "linear-gradient",
+      colorStops,
+      direction: gradientDirection,
+      noise: background.noise,
+      gridOverlay: background.gridOverlay,
+    })
+  }
 
   return (
     <Card>
@@ -325,6 +377,44 @@ export function BackgroundForm() {
                   </div>
                 </RadioGroup>
               </Card>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Custom Gradient</div>
+                <Card className="p-2">
+                  <div className="flex items-end gap-2">
+                    <ColorInput
+                      id="custom-gradient-start"
+                      label="Start"
+                      value={gradientStart}
+                      onChange={(color) =>
+                        setCustomGradient([color, gradientEnd])
+                      }
+                    />
+                    <ColorInput
+                      id="custom-gradient-end"
+                      label="End"
+                      value={gradientEnd}
+                      onChange={(color) =>
+                        setCustomGradient([gradientStart, color])
+                      }
+                    />
+                    <div
+                      aria-label="Custom gradient preview"
+                      className={cn(
+                        "size-9 min-h-9 min-w-9 rounded-md border-2 border-muted",
+                        isCustomGradient && "border-primary"
+                      )}
+                      style={{
+                        background: toBackgroundShorthand({
+                          type: "linear-gradient",
+                          direction: gradientDirection,
+                          colorStops: [gradientStart, gradientEnd],
+                        }),
+                      }}
+                    ></div>
+                  </div>
+                </Card>
+              </div>
 
               <div className="space-y-2">
                 <div className="text-sm font-medium">Gradient Direction</div>
@@ -458,7 +548,7 @@ export function BackgroundForm() {
               </div>
             </TabsContent>
 
-            <TabsContent value="color">
+            <TabsContent value="color" className="space-y-4">
               <Card className="p-2">
                 <RadioGroup
                   value={
@@ -494,6 +584,27 @@ export function BackgroundForm() {
                   </div>
                 </RadioGroup>
               </Card>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Custom Color</div>
+                <Card className="p-2">
+                  <ColorInput
+                    id="custom-solid-color"
+                    selected={isCustomSolid}
+                    value={
+                      background.type === "color" ? background.color : "#000000"
+                    }
+                    onChange={(color) => {
+                      template.setBackground({
+                        type: "color",
+                        color,
+                        noise: background.noise,
+                        gridOverlay: background.gridOverlay,
+                      })
+                    }}
+                  />
+                </Card>
+              </div>
             </TabsContent>
           </Tabs>
 
